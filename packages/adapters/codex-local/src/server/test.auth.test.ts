@@ -184,6 +184,87 @@ describe("codex local environment probe auth", () => {
     });
   });
 
+  it("does not seed a configured CODEX_HOME outside the managed company tree", async () => {
+    const fx = await makeFixture();
+    const externalHome = path.join(fx.root, "external-codex-home");
+
+    const result = await testEnvironment({
+      companyId: "company-1",
+      adapterType: "codex_local",
+      config: {
+        command: "codex",
+        cwd: fx.workspaceDir,
+        env: {
+          CODEX_HOME: externalHome,
+          OPENAI_API_KEY: "",
+        },
+      },
+    });
+
+    expect(result.checks.some((check) => check.code === "codex_probe_auth_seeded_from_host_login")).toBe(false);
+    await expect(fs.access(path.join(externalHome, "auth.json"))).rejects.toBeTruthy();
+  });
+
+  it("does not seed a CODEX_HOME under another company's managed tree", async () => {
+    const fx = await makeFixture();
+    const otherCompanyHome = path.join(
+      fx.paperclipHome,
+      "instances",
+      "default",
+      "companies",
+      "company-2",
+      "agents",
+      "agent-1",
+      "codex-home",
+    );
+
+    const result = await testEnvironment({
+      companyId: "company-1",
+      adapterType: "codex_local",
+      config: {
+        command: "codex",
+        cwd: fx.workspaceDir,
+        env: {
+          CODEX_HOME: otherCompanyHome,
+          OPENAI_API_KEY: "",
+        },
+      },
+    });
+
+    expect(result.checks.some((check) => check.code === "codex_probe_auth_seeded_from_host_login")).toBe(false);
+    await expect(fs.access(path.join(otherCompanyHome, "auth.json"))).rejects.toBeTruthy();
+  });
+
+  it("continues the environment probe when managed auth symlink seeding fails", async () => {
+    const fx = await makeFixture();
+    const symlinkError = Object.assign(new Error("operation not permitted, symlink"), { code: "EPERM" });
+    const symlinkSpy = vi.spyOn(fs, "symlink").mockRejectedValueOnce(symlinkError);
+
+    try {
+      const result = await testEnvironment({
+        companyId: "company-1",
+        adapterType: "codex_local",
+        config: {
+          command: "codex",
+          cwd: fx.workspaceDir,
+          env: {
+            CODEX_HOME: fx.managedAgentHome,
+            OPENAI_API_KEY: "",
+          },
+        },
+      });
+
+      const seedFailure = result.checks.find((check) => check.code === "codex_probe_auth_seed_failed");
+      expect(result.status).toBe("warn");
+      expect(seedFailure?.level).toBe("warn");
+      expect(seedFailure?.detail).toContain("operation not permitted");
+      expect(runAdapterExecutionTargetProcess).toHaveBeenCalled();
+      await expect(fs.access(path.join(fx.managedAgentHome, "auth.json"))).rejects.toBeTruthy();
+    } finally {
+      symlinkSpy.mockRestore();
+    }
+  });
+
   it("keeps the API-key probe path isolated from the managed CODEX_HOME", async () => {
     const fx = await makeFixture();
 

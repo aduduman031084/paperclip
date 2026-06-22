@@ -248,14 +248,24 @@ export async function testEnvironment(
     const configuredHomeIsManaged =
       configuredCodexHome != null && isManagedCodexHomePath(process.env, ctx.companyId, configuredCodexHome);
     if (configuredHomeIsManaged) {
-      await seedManagedCodexHome(configuredCodexHome, process.env, async () => {});
-      const sourceHome = resolveSharedCodexHomeDir(process.env);
-      if (await fs.access(path.join(configuredCodexHome, "auth.json")).then(() => true).catch(() => false)) {
+      try {
+        await seedManagedCodexHome(configuredCodexHome, process.env, async () => {});
+        const sourceHome = resolveSharedCodexHomeDir(process.env);
+        if (await fs.access(path.join(configuredCodexHome, "auth.json")).then(() => true).catch(() => false)) {
+          checks.push({
+            code: "codex_probe_auth_seeded_from_host_login",
+            level: "info",
+            message: "Seeded Codex probe authentication from the host login.",
+            detail: `Symlinked auth.json from ${path.join(sourceHome, "auth.json")} into ${path.join(configuredCodexHome, "auth.json")}.`,
+          });
+        }
+      } catch (err) {
         checks.push({
-          code: "codex_probe_auth_seeded_from_host_login",
-          level: "info",
-          message: "Seeded Codex probe authentication from the host login.",
-          detail: `Symlinked auth.json from ${path.join(sourceHome, "auth.json")} into ${path.join(configuredCodexHome, "auth.json")}.`,
+          code: "codex_probe_auth_seed_failed",
+          level: "warn",
+          message: "Could not seed Codex probe authentication from the host login.",
+          detail: err instanceof Error ? err.message : String(err),
+          hint: "The probe will continue without seeded Codex auth. On Windows, enable Developer Mode or grant symlink privileges if auth.json symlink creation is required.",
         });
       }
     }
