@@ -4,6 +4,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 
 function parseArgs(argv) {
@@ -107,6 +108,12 @@ function sanitizeFileName(value) {
     .slice(0, 120) || "screenshot";
 }
 
+export function resolveScreenshotPath(screenshotDir, requested) {
+  const rawName = typeof requested === "string" && requested.trim() ? requested : "screenshot.png";
+  const baseName = path.win32.basename(path.posix.basename(rawName));
+  return path.join(screenshotDir, sanitizeFileName(baseName));
+}
+
 function resolveTargetUrl(baseUrl, body) {
   if (typeof body.url === "string" && body.url.trim()) {
     return new URL(body.url, baseUrl).toString();
@@ -199,7 +206,7 @@ async function main() {
         if (body.clear !== false) {
           await locator.fill(body.text, { timeout: body.timeoutMs ?? 10_000 });
         } else {
-          await locator.type(body.text, { timeout: body.timeoutMs ?? 10_000 });
+          await locator.pressSequentially(body.text, { timeout: body.timeoutMs ?? 10_000 });
         }
         sendJson(res, 200, { ok: true, url: page.url() });
         return;
@@ -207,17 +214,21 @@ async function main() {
 
       if (url.pathname === "/waitFor") {
         const timeout = body.timeoutMs ?? 10_000;
+        let deterministicWait = false;
         if (typeof body.selector === "string") {
+          deterministicWait = true;
           await page.locator(body.selector).waitFor({ timeout });
         }
         if (typeof body.url === "string") {
+          deterministicWait = true;
           await page.waitForURL(body.url, { timeout });
         }
         if (typeof body.loadState === "string") {
+          deterministicWait = true;
           await page.waitForLoadState(body.loadState, { timeout });
         }
-        if (typeof body.ms === "number") {
-          await page.waitForTimeout(body.ms);
+        if (!deterministicWait) {
+          throw new Error("waitFor requires selector, url, or loadState");
         }
         sendJson(res, 200, { ok: true, url: page.url() });
         return;
@@ -254,11 +265,8 @@ async function main() {
       if (url.pathname === "/screenshot") {
         const defaultName = `${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
         const requested = typeof body.path === "string" && body.path.trim() ? body.path : defaultName;
-        const fileName = sanitizeFileName(path.basename(requested));
-        const target = path.isAbsolute(requested)
-          ? requested
-          : path.join(args.screenshotDir, fileName);
-        fs.mkdirSync(path.dirname(target), { recursive: true });
+        const target = resolveScreenshotPath(args.screenshotDir, requested);
+        fs.mkdirSync(args.screenshotDir, { recursive: true });
         await page.screenshot({ path: target, fullPage: body.fullPage !== false });
         sendJson(res, 200, { ok: true, path: target, url: page.url() });
         return;
@@ -342,7 +350,9 @@ async function main() {
   process.on("SIGTERM", shutdown);
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.stack ?? err.message : String(err));
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(err instanceof Error ? err.stack ?? err.message : String(err));
+    process.exit(1);
+  });
+}
