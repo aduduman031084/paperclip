@@ -179,7 +179,27 @@
               }
             }
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "quarantined"
+                }
+              },
+              "required": ["status"]
+            },
+            "then": {
+              "required": ["quarantine"],
+              "properties": {
+                "quarantine": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "overallVerdict": {

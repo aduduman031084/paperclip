@@ -222,11 +222,11 @@
         {
           "path": "references/verdict-schema.json",
           "kind": "reference",
-          "sizeBytes": 5256,
-          "sha256": "b7201da45d9077d625d536dddfe518bdde3ead44152658998507f221fd3776ac"
+          "sizeBytes": 5725,
+          "sha256": "aba255ea4695298bf2a678cc16b2387a558eee0d37e9321c389e86ded4a30e96"
         }
       ],
-      "contentHash": "sha256:4c7906e66c5b632439864a9b01906cfa30ddcb529c4a031ca2b39c31c316682e"
+      "contentHash": "sha256:95140d0ccd7a20a35325b3c7dccedb3f1148a851f91cb78919e61790609fa520"
     },
     {
       "id": "paperclipai:bundled:quality:qa-acceptance",
