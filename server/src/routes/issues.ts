@@ -5626,6 +5626,18 @@ export function issueRoutes(
       return;
     }
     assertCompanyAccess(req, existing.companyId);
+    if (req.actor.type === "agent" && assignmentPatchRequested && existing.hiddenAt !== null) {
+      await logTaskAssignmentAuthorizationDecision({
+        req,
+        companyId: existing.companyId,
+        issueId: existing.id,
+        decision: "deny",
+        reason: "deny_hidden_target",
+        redactActor: true,
+      });
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
     assertNoAgentHostWorkspaceCommandMutation(req, collectIssueWorkspaceCommandPaths(req.body));
     if (isTaskAssignmentOnlyPatch(req.body)) {
       const watchdogScope = req.actor.type === "agent"

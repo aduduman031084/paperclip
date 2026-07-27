@@ -1547,6 +1547,44 @@ describe("agent issue mutation checkout ownership", () => {
     expect(auditPayload).not.toMatch(/token|authorization.*bearer/i);
   });
 
+  it("denies assignment to a hidden issue without leaking hidden content", async () => {
+    mockIssueService.getById.mockResolvedValue(makeIssue({
+      hiddenAt: new Date("2026-07-27T18:00:00.000Z"),
+      title: "Private archived issue content",
+      assigneeAgentId: ownerAgentId,
+    }));
+    mockAccessService.decide.mockImplementation(async (input: { action: string }) => ({
+      allowed: input.action === "issue:read" || input.action === "tasks:assign",
+      action: input.action,
+      reason: input.action === "tasks:assign" ? "allow_explicit_grant" : "allow_company_member",
+      explanation: "Allowed by the field-specific test grant.",
+    }));
+
+    const res = await request(await createApp(peerActor()))
+      .patch(`/api/issues/${issueId}`)
+      .send({ assigneeAgentId: peerAgentId });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: "Forbidden" });
+    expect(mockIssueService.update).not.toHaveBeenCalled();
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "authorization.task_assignment_decided",
+        entityId: issueId,
+        actorType: "system",
+        actorId: "authorization-boundary",
+        agentId: null,
+        runId: null,
+        details: expect.objectContaining({ decision: "deny", reason: "deny_hidden_target" }),
+      }),
+    );
+    const auditPayload = JSON.stringify(mockLogActivity.mock.calls.at(-1));
+    expect(auditPayload).not.toContain("Private archived issue content");
+    expect(auditPayload).not.toContain(peerAgentId);
+    expect(auditPayload).not.toMatch(/token|authorization.*bearer/i);
+  });
+
   it("audits allowed and denied assignment policy decisions without request content", async () => {
     mockIssueService.getById.mockResolvedValue(makeIssue({ status: "todo", assigneeAgentId: ownerAgentId }));
     mockAgentService.resolveByReference.mockResolvedValue({ ambiguous: false, agent: makeAgent(peerAgentId) });
