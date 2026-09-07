@@ -186,6 +186,10 @@ describe("human invite roles", () => {
       { permissionKey: "users:manage_permissions", scope: null },
       { permissionKey: "tasks:assign", scope: null },
       { permissionKey: "joins:approve", scope: null },
+      { permissionKey: "tools:manage_connections", scope: null },
+      { permissionKey: "tools:manage_runtime", scope: null },
+      { permissionKey: "tools:use", scope: null },
+      { permissionKey: "tools:admin", scope: null },
     ]);
   });
 
@@ -198,6 +202,10 @@ describe("human invite roles", () => {
       { permissionKey: "users:invite", scope: null },
       { permissionKey: "tasks:assign", scope: null },
       { permissionKey: "joins:approve", scope: null },
+      { permissionKey: "tools:manage_connections", scope: null },
+      { permissionKey: "tools:manage_runtime", scope: null },
+      { permissionKey: "tools:use", scope: null },
+      { permissionKey: "tools:admin", scope: null },
     ]);
   });
 
